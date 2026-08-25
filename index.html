@@ -173,7 +173,7 @@
             }
         };
 
-        // Excel 檔案匯入處理
+        // Excel 檔案匯入處理（增強版欄位解析與金額清洗）
         document.getElementById('excel-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -187,13 +187,65 @@
 
                 const batch = writeBatch(db);
                 json.forEach(row => {
+                    // 自動尋找可能代表「金額」的欄位名稱
+                    let priceValue = 0;
+                    for (let key in row) {
+                        const k = key.trim();
+                        if (k.includes('金額') || k.includes('價格') || k.includes('入手') || k.includes('價錢') || k.toLowerCase().includes('price')) {
+                            // 轉成字串後把 NT$、逗號, 等非數字符號剔除
+                            let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
+                            priceValue = Number(rawStr) || 0;
+                            break;
+                        }
+                    }
+
+                    // 自動尋找編號
+                    let idValue = '';
+                    for (let key in row) {
+                        const k = key.trim();
+                        if (k.includes('編號') || k.includes('型號') || k.toLowerCase().includes('id') || k.toLowerCase().includes('item')) {
+                            idValue = row[key];
+                            break;
+                        }
+                    }
+
+                    // 自動尋找名稱
+                    let nameValue = '';
+                    for (let key in row) {
+                        const k = key.trim();
+                        if (k.includes('名稱') || k.includes('品名') || k.toLowerCase().includes('name')) {
+                            nameValue = row[key];
+                            break;
+                        }
+                    }
+
+                    // 自動尋找日期
+                    let dateValue = '';
+                    for (let key in row) {
+                        const k = key.trim();
+                        if (k.includes('日期') || k.includes('時間') || k.toLowerCase().includes('date')) {
+                            dateValue = row[key];
+                            break;
+                        }
+                    }
+
+                    // 自動尋找地點
+                    let locationValue = '';
+                    for (let key in row) {
+                        const k = key.trim();
+                        if (k.includes('地點') || k.includes('購買地') || k.includes('通路') || k.includes('管道') || k.toLowerCase().includes('location')) {
+                            locationValue = row[key];
+                            break;
+                        }
+                    }
+
                     const newDoc = doc(legoRef);
                     batch.set(newDoc, {
-                        id: row['盒組編號'] || row['編號'] || '',
-                        name: row['盒組名稱'] || row['名稱'] || '',
-                        price: Number(row['實際購買金額'] || row['金額'] || 0),
-                        date: row['購買日期'] || row['日期'] || '',
-                        location: row['購買地點'] || row['地點'] || ''
+                        id: idValue || row['盒組編號'] || '',
+                        name: nameValue || row['盒組名稱'] || '',
+                        price: priceValue,
+                        date: dateValue || row['購買日期'] || '',
+                        location: locationValue || row['購買地點'] || ''
                     });
                 });
                 await batch.commit();
@@ -202,9 +254,3 @@
             };
             reader.readAsArrayBuffer(file);
         });
-
-        // 頁面載入時讀取
-        fetchItems();
-    </script>
-</body>
-</html>
