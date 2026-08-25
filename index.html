@@ -172,7 +172,7 @@
             }
         };
 
-        // Excel 檔案匯入處理
+        // Excel 檔案匯入處理（修正貨幣格式與帶符號數字）
         document.getElementById('excel-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -182,55 +182,55 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet);
+                
+                // 使用 raw: true 取得真正的數字，避免貨幣符號 $ 干擾
+                const json = XLSX.utils.sheet_to_json(sheet, { raw: true });
 
                 const batch = writeBatch(db);
                 json.forEach(row => {
                     let priceValue = 0;
-                    let idValue = '';
-                    let nameValue = '';
-                    let dateValue = '';
-                    let locationValue = '';
+                    let idValue = row['盒組編號'] || '';
+                    let nameValue = row['盒組名稱'] || '';
+                    let dateValue = row['購買日期'] || '';
+                    let locationValue = row['購買地點'] || '';
 
+                    // 優先抓取「入手金額」，若無則抓「原價」或帶有金額關鍵字的欄位
                     for (let key in row) {
                         const k = key.trim();
-                        // 辨識金額欄位並自動把 NT$、逗號, 等非數字符號剔除
-                        if (k.includes('金額') || k.includes('價格') || k.includes('入手') || k.includes('價錢') || k.toLowerCase().includes('price')) {
-                            let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
-                            priceValue = Number(rawStr) || 0;
+                        if (k === '入手金額' || k === '原價' || k.includes('金額') || k.includes('價格')) {
+                            if (row[key] !== undefined && row[key] !== null) {
+                                // 剔除非數字字元（只保留數字與小數點）
+                                let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
+                                let parsed = Number(rawStr);
+                                if (!isNaN(parsed) && parsed > 0) {
+                                    priceValue = parsed;
+                                    break;
+                                }
+                            }
                         }
-                        if (k.includes('編號') || k.includes('型號') || k.toLowerCase().includes('id') || k.toLowerCase().includes('item')) {
-                            idValue = row[key];
-                        }
-                        if (k.includes('名稱') || k.includes('品名') || k.toLowerCase().includes('name')) {
-                            nameValue = row[key];
-                        }
-                        if (k.includes('日期') || k.includes('時間') || k.toLowerCase().includes('date')) {
-                            dateValue = row[key];
-                        }
-                        if (k.includes('地點') || k.includes('購買地') || k.includes('通路') || k.includes('管道') || k.toLowerCase().includes('location')) {
-                            locationValue = row[key];
+                    }
+
+                    // 處理 Excel 日期格式數字（若日期被轉成五位數字如 45250）
+                    if (typeof dateValue === 'number') {
+                        const dateObj = XLSX.SSF.parse_date_code(dateValue);
+                        if (dateObj) {
+                            dateValue = `${dateObj.y}/${String(dateObj.m).padStart(2, '0')}/${String(dateObj.d).padStart(2, '0')}`;
                         }
                     }
 
                     const newDoc = doc(legoRef);
                     batch.set(newDoc, {
-                        id: idValue || row['盒組編號'] || '',
-                        name: nameValue || row['盒組名稱'] || '',
+                        id: String(idValue),
+                        name: String(nameValue),
                         price: priceValue,
-                        date: dateValue || row['購買日期'] || '',
-                        location: locationValue || row['購買地點'] || ''
+                        date: String(dateValue),
+                        location: String(locationValue)
                     });
                 });
+
                 await batch.commit();
                 alert('Excel 資料已成功同步上傳至雲端！');
                 fetchItems();
             };
             reader.readAsArrayBuffer(file);
         });
-
-        // 頁面載入時讀取
-        fetchItems();
-    </script>
-</body>
-</html>
