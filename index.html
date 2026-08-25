@@ -89,10 +89,11 @@ HTML
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            // cellFormulas: false, raw: false 確保抓取到 Excel 運算後的文字結果
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+            const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
             itemsList = json.map(row => {
                 // 1. 抓取編號
@@ -101,23 +102,35 @@ HTML
                 // 2. 抓取名稱
                 const name = row['盒組名稱'] || row['名稱'] || '未命名盒組';
 
-                // 3. 抓取單價並四捨五入成整數
-                let rawPrice = row['入手金額'] !== undefined ? row['入手金額'] : row['原價'];
-                let price = Math.round(Number(String(rawPrice || 0).replace(/[^0-9.]/g, '')) || 0);
+                // 3. 智慧解析金額（自動處理公式、字串、符號）
+                let price = 0;
+                let rawPrice = row['入手金額'] !== '' && row['入手金額'] !== undefined ? row['入手金額'] : row['原價'];
+                
+                if (rawPrice !== undefined && rawPrice !== '') {
+                    // 移除字串中的所有非數字與非小數點符號 (如 $, 千分位逗號)
+                    let cleanStr = String(rawPrice).replace(/[^0-9.]/g, '');
+                    let num = parseFloat(cleanStr);
+                    if (!isNaN(num)) {
+                        price = Math.round(num);
+                    }
+                }
 
                 // 4. 抓取數量
-                let qty = Number(row['數量']) || 1;
+                let qty = parseInt(row['數量'], 10);
+                if (isNaN(qty) || qty <= 0) qty = 1;
 
                 // 5. 抓取日期
                 let date = '';
                 const rawDate = row['購買日期'] || row['日期'];
-                if (typeof rawDate === 'number') {
-                    const dateObj = XLSX.SSF.parse_date_code(rawDate);
-                    if (dateObj) {
-                        date = `${dateObj.y}/${String(dateObj.m).padStart(2, '0')}/${String(dateObj.d).padStart(2, '0')}`;
+                if (rawDate) {
+                    if (rawDate instanceof Date) {
+                        let y = rawDate.getFullYear();
+                        let m = String(rawDate.getMonth() + 1).padStart(2, '0');
+                        let d = String(rawDate.getDate()).padStart(2, '0');
+                        date = `${y}/${m}/${d}`;
+                    } else {
+                        date = String(rawDate).split('T')[0].replace(/-/g, '/');
                     }
-                } else {
-                    date = rawDate ? String(rawDate) : '';
                 }
 
                 // 6. 抓取地點
@@ -189,9 +202,9 @@ HTML
             });
         }
 
-        // 計算總數量與總金額 (自動取整數)
+        // 計算總數量與總金額
         const totalCount = itemsList.reduce((sum, item) => sum + item.qty, 0);
-        const totalAmount = Math.round(itemsList.reduce((sum, item) => sum + item.price, 0));
+        const totalAmount = itemsList.reduce((sum, item) => sum + item.price, 0);
 
         document.getElementById('totalCount').innerText = `${totalCount} 盒`;
         document.getElementById('totalAmount').innerText = `$${totalAmount.toLocaleString()}`;
