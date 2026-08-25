@@ -74,7 +74,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // 已代入您的專屬 Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyD1_oCmaGgVTkn4vABJnEGiYmr7mLHSuDE",
             authDomain: "lego-account.firebaseapp.com",
@@ -173,7 +172,7 @@
             }
         };
 
-        // Excel 檔案匯入處理（增強版欄位解析與金額清洗）
+        // Excel 檔案匯入處理
         document.getElementById('excel-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -187,55 +186,30 @@
 
                 const batch = writeBatch(db);
                 json.forEach(row => {
-                    // 自動尋找可能代表「金額」的欄位名稱
                     let priceValue = 0;
+                    let idValue = '';
+                    let nameValue = '';
+                    let dateValue = '';
+                    let locationValue = '';
+
                     for (let key in row) {
                         const k = key.trim();
+                        // 辨識金額欄位並自動把 NT$、逗號, 等非數字符號剔除
                         if (k.includes('金額') || k.includes('價格') || k.includes('入手') || k.includes('價錢') || k.toLowerCase().includes('price')) {
-                            // 轉成字串後把 NT$、逗號, 等非數字符號剔除
                             let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
                             priceValue = Number(rawStr) || 0;
-                            break;
                         }
-                    }
-
-                    // 自動尋找編號
-                    let idValue = '';
-                    for (let key in row) {
-                        const k = key.trim();
                         if (k.includes('編號') || k.includes('型號') || k.toLowerCase().includes('id') || k.toLowerCase().includes('item')) {
                             idValue = row[key];
-                            break;
                         }
-                    }
-
-                    // 自動尋找名稱
-                    let nameValue = '';
-                    for (let key in row) {
-                        const k = key.trim();
                         if (k.includes('名稱') || k.includes('品名') || k.toLowerCase().includes('name')) {
                             nameValue = row[key];
-                            break;
                         }
-                    }
-
-                    // 自動尋找日期
-                    let dateValue = '';
-                    for (let key in row) {
-                        const k = key.trim();
                         if (k.includes('日期') || k.includes('時間') || k.toLowerCase().includes('date')) {
                             dateValue = row[key];
-                            break;
                         }
-                    }
-
-                    // 自動尋找地點
-                    let locationValue = '';
-                    for (let key in row) {
-                        const k = key.trim();
                         if (k.includes('地點') || k.includes('購買地') || k.includes('通路') || k.includes('管道') || k.toLowerCase().includes('location')) {
                             locationValue = row[key];
-                            break;
                         }
                     }
 
@@ -254,3 +228,9 @@
             };
             reader.readAsArrayBuffer(file);
         });
+
+        // 頁面載入時讀取
+        fetchItems();
+    </script>
+</body>
+</html>
