@@ -78,95 +78,107 @@ HTML
         </div>
     </div>
 
-    <script>
-        let itemsList = [];
+   <script>
+    let itemsList = [];
 
-        // 監聽 Excel 檔案上傳
-        document.getElementById('excelFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+    // 監聽 Excel 檔案上傳
+    document.getElementById('excelFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { raw: true });
 
-                // 格式轉換與對應
-                itemsList = json.map(row => ({
-                    id: row['編號'] || row['盒組編號'] || row['id'] || '',
-                    name: row['名稱'] || row['盒組名稱'] || row['name'] || '',
-                    price: Number(row['入手金額'] || row['金額'] || row['price'] || 0),
-                    date: row['日期'] || row['date'] || '',
-                    location: row['購買地點'] || row['地點'] || row['location'] || ''
-                }));
+            itemsList = json.map(row => {
+                // 自動尋找各種可能代表金額的欄位名稱
+                let priceValue = 0;
+                for (let key in row) {
+                    const k = String(key).trim();
+                    if (k.includes('金額') || k.includes('價') || k.includes('price') || k.includes('Price')) {
+                        let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
+                        let parsed = Number(rawStr);
+                        if (!isNaN(parsed) && parsed > 0) {
+                            priceValue = parsed;
+                            break;
+                        }
+                    }
+                }
 
-                renderTable();
-            };
-            reader.readAsArrayBuffer(file);
-        });
-
-        // 手動新增資料
-        function addItem() {
-            const id = document.getElementById('addId').value;
-            const name = document.getElementById('addName').value;
-            const price = Number(document.getElementById('addPrice').value) || 0;
-            const date = document.getElementById('addDate').value;
-            const location = document.getElementById('addLocation').value;
-
-            if (!name) {
-                alert("請填寫名稱！");
-                return;
-            }
-
-            itemsList.unshift({ id, name, price, date, location });
-            
-            // 清空輸入欄位
-            document.getElementById('addId').value = '';
-            document.getElementById('addName').value = '';
-            document.getElementById('addPrice').value = '';
-            document.getElementById('addDate').value = '';
-            document.getElementById('addLocation').value = '';
+                return {
+                    id: row['編號'] || row['盒組編號'] || row['id'] || row['ID'] || '',
+                    name: row['名稱'] || row['盒組名稱'] || row['name'] || row['Name'] || '',
+                    price: priceValue,
+                    date: row['日期'] || row['購買日期'] || row['date'] || '',
+                    location: row['地點'] || row['購買地點'] || row['location'] || ''
+                };
+            });
 
             renderTable();
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    // 手動新增資料
+    function addItem() {
+        const id = document.getElementById('addId').value;
+        const name = document.getElementById('addName').value;
+        const price = Number(document.getElementById('addPrice').value) || 0;
+        const date = document.getElementById('addDate').value;
+        const location = document.getElementById('addLocation').value;
+
+        if (!name) {
+            alert("請填寫名稱！");
+            return;
         }
 
-        // 渲染表格與更新統計數據
-        function renderTable() {
-            const keyword = document.getElementById('searchInput').value.toLowerCase();
-            const filteredItems = itemsList.filter(item => 
-                String(item.id).toLowerCase().includes(keyword) || 
-                String(item.name).toLowerCase().includes(keyword)
-            );
+        itemsList.unshift({ id, name, price, date, location });
+        
+        document.getElementById('addId').value = '';
+        document.getElementById('addName').value = '';
+        document.getElementById('addPrice').value = '';
+        document.getElementById('addDate').value = '';
+        document.getElementById('addLocation').value = '';
 
-            const tbody = document.getElementById('itemTableBody');
-            tbody.innerHTML = '';
+        renderTable();
+    }
 
-            if (filteredItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">無符合資料</td></tr>';
-            } else {
-                filteredItems.forEach(item => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${item.id}</td>
-                        <td>${item.name}</td>
-                        <td>$${item.price.toLocaleString()}</td>
-                        <td>${item.date}</td>
-                        <td>${item.location}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            }
+    // 渲染表格與更新統計數據
+    function renderTable() {
+        const keyword = document.getElementById('searchInput').value.toLowerCase();
+        const filteredItems = itemsList.filter(item => 
+            String(item.id).toLowerCase().includes(keyword) || 
+            String(item.name).toLowerCase().includes(keyword)
+        );
 
-            // 更新統計金額與盒數
-            const totalCount = itemsList.length;
-            const totalAmount = itemsList.reduce((sum, item) => sum + item.price, 0);
+        const tbody = document.getElementById('itemTableBody');
+        tbody.innerHTML = '';
 
-            document.getElementById('totalCount').innerText = `${totalCount} 盒`;
-            document.getElementById('totalAmount').innerText = `$${totalAmount.toLocaleString()}`;
+        if (filteredItems.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">無符合資料</td></tr>';
+        } else {
+            filteredItems.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>${item.name}</td>
+                    <td>$${item.price.toLocaleString()}</td>
+                    <td>${item.date}</td>
+                    <td>${item.location}</td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
-    </script>
-</body>
-</html>
+
+        // 更新統計金額與盒數
+        const totalCount = itemsList.length;
+        const totalAmount = itemsList.reduce((sum, item) => sum + item.price, 0);
+
+        document.getElementById('totalCount').innerText = `${totalCount} 盒`;
+        document.getElementById('totalAmount').innerText = `$${totalAmount.toLocaleString()}`;
+    }
+</script>
