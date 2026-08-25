@@ -78,7 +78,7 @@ HTML
         </div>
     </div>
 
-   <script>
+  <script>
     let itemsList = [];
 
     // 監聽 Excel 檔案上傳
@@ -95,20 +95,20 @@ HTML
             const json = XLSX.utils.sheet_to_json(worksheet, { raw: true });
 
             itemsList = json.map(row => {
-                // 1. 抓取編號 (A欄: 盒組編號)
+                // 1. 抓取編號
                 const id = row['盒組編號'] || row['編號'] || '';
 
-                // 2. 抓取名稱 (B欄: 盒組名稱)
+                // 2. 抓取名稱
                 const name = row['盒組名稱'] || row['名稱'] || '未命名盒組';
 
-                // 3. 抓取單價 (D欄: 入手金額，若沒有才退而求其次找原價)
+                // 3. 抓取單價並四捨五入成整數
                 let rawPrice = row['入手金額'] !== undefined ? row['入手金額'] : row['原價'];
-                let price = Number(String(rawPrice || 0).replace(/[^0-9.]/g, '')) || 0;
+                let price = Math.round(Number(String(rawPrice || 0).replace(/[^0-9.]/g, '')) || 0);
 
-                // 4. 抓取數量 (H欄: 數量)
+                // 4. 抓取數量
                 let qty = Number(row['數量']) || 1;
 
-                // 5. 抓取日期 (E欄: 購買日期)
+                // 5. 抓取日期
                 let date = '';
                 const rawDate = row['購買日期'] || row['日期'];
                 if (typeof rawDate === 'number') {
@@ -120,14 +120,14 @@ HTML
                     date = rawDate ? String(rawDate) : '';
                 }
 
-                // 6. 抓取地點 (F欄: 購買地點)
+                // 6. 抓取地點
                 const location = row['購買地點'] || row['地點'] || '';
 
                 return {
                     id: String(id),
                     name: String(name),
-                    price: price,  // 單筆入手金額
-                    qty: qty,      // 盒數
+                    price: price,
+                    qty: qty,
                     date: date,
                     location: String(location)
                 };
@@ -142,7 +142,7 @@ HTML
     function addItem() {
         const id = document.getElementById('addId').value;
         const name = document.getElementById('addName').value;
-        const price = Number(document.getElementById('addPrice').value) || 0;
+        const price = Math.round(Number(document.getElementById('addPrice').value) || 0);
         const date = document.getElementById('addDate').value;
         const location = document.getElementById('addLocation').value;
 
@@ -189,9 +189,9 @@ HTML
             });
         }
 
-        // 計算總數量 (加上數量欄位) 與總金額
+        // 計算總數量與總金額 (自動取整數)
         const totalCount = itemsList.reduce((sum, item) => sum + item.qty, 0);
-        const totalAmount = itemsList.reduce((sum, item) => sum + item.price, 0);
+        const totalAmount = Math.round(itemsList.reduce((sum, item) => sum + item.price, 0));
 
         document.getElementById('totalCount').innerText = `${totalCount} 盒`;
         document.getElementById('totalAmount').innerText = `$${totalAmount.toLocaleString()}`;
