@@ -95,26 +95,41 @@ HTML
             const json = XLSX.utils.sheet_to_json(worksheet, { raw: true });
 
             itemsList = json.map(row => {
-                // 自動尋找各種可能代表金額的欄位名稱
-                let priceValue = 0;
-                for (let key in row) {
-                    const k = String(key).trim();
-                    if (k.includes('金額') || k.includes('價') || k.includes('price') || k.includes('Price')) {
-                        let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
-                        let parsed = Number(rawStr);
-                        if (!isNaN(parsed) && parsed > 0) {
-                            priceValue = parsed;
-                            break;
-                        }
+                // 1. 抓取編號 (A欄: 盒組編號)
+                const id = row['盒組編號'] || row['編號'] || '';
+
+                // 2. 抓取名稱 (B欄: 盒組名稱)
+                const name = row['盒組名稱'] || row['名稱'] || '未命名盒組';
+
+                // 3. 抓取單價 (D欄: 入手金額，若沒有才退而求其次找原價)
+                let rawPrice = row['入手金額'] !== undefined ? row['入手金額'] : row['原價'];
+                let price = Number(String(rawPrice || 0).replace(/[^0-9.]/g, '')) || 0;
+
+                // 4. 抓取數量 (H欄: 數量)
+                let qty = Number(row['數量']) || 1;
+
+                // 5. 抓取日期 (E欄: 購買日期)
+                let date = '';
+                const rawDate = row['購買日期'] || row['日期'];
+                if (typeof rawDate === 'number') {
+                    const dateObj = XLSX.SSF.parse_date_code(rawDate);
+                    if (dateObj) {
+                        date = `${dateObj.y}/${String(dateObj.m).padStart(2, '0')}/${String(dateObj.d).padStart(2, '0')}`;
                     }
+                } else {
+                    date = rawDate ? String(rawDate) : '';
                 }
 
+                // 6. 抓取地點 (F欄: 購買地點)
+                const location = row['購買地點'] || row['地點'] || '';
+
                 return {
-                    id: row['編號'] || row['盒組編號'] || row['id'] || row['ID'] || '',
-                    name: row['名稱'] || row['盒組名稱'] || row['name'] || row['Name'] || '',
-                    price: priceValue,
-                    date: row['日期'] || row['購買日期'] || row['date'] || '',
-                    location: row['地點'] || row['購買地點'] || row['location'] || ''
+                    id: String(id),
+                    name: String(name),
+                    price: price,  // 單筆入手金額
+                    qty: qty,      // 盒數
+                    date: date,
+                    location: String(location)
                 };
             });
 
@@ -136,7 +151,7 @@ HTML
             return;
         }
 
-        itemsList.unshift({ id, name, price, date, location });
+        itemsList.unshift({ id, name, price, qty: 1, date, location });
         
         document.getElementById('addId').value = '';
         document.getElementById('addName').value = '';
@@ -151,8 +166,8 @@ HTML
     function renderTable() {
         const keyword = document.getElementById('searchInput').value.toLowerCase();
         const filteredItems = itemsList.filter(item => 
-            String(item.id).toLowerCase().includes(keyword) || 
-            String(item.name).toLowerCase().includes(keyword)
+            item.id.toLowerCase().includes(keyword) || 
+            item.name.toLowerCase().includes(keyword)
         );
 
         const tbody = document.getElementById('itemTableBody');
@@ -165,7 +180,7 @@ HTML
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${item.id}</td>
-                    <td>${item.name}</td>
+                    <td>${item.name} ${item.qty > 1 ? `<span style="color:#d32f2f; font-weight:bold;">(x${item.qty})</span>` : ''}</td>
                     <td>$${item.price.toLocaleString()}</td>
                     <td>${item.date}</td>
                     <td>${item.location}</td>
@@ -174,8 +189,8 @@ HTML
             });
         }
 
-        // 更新統計金額與盒數
-        const totalCount = itemsList.length;
+        // 計算總數量 (加上數量欄位) 與總金額
+        const totalCount = itemsList.reduce((sum, item) => sum + item.qty, 0);
         const totalAmount = itemsList.reduce((sum, item) => sum + item.price, 0);
 
         document.getElementById('totalCount').innerText = `${totalCount} 盒`;
