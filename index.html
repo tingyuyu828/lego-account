@@ -78,7 +78,7 @@ HTML
         </div>
     </div>
 
-  <script>
+ <script>
     let itemsList = [];
 
     // 監聽 Excel 檔案上傳
@@ -89,7 +89,7 @@ HTML
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            // raw: true 確保抓取 Excel 底層的真實數值（無視格式化與貨幣符號）
+            // raw: true 確保抓取 Excel 底層數值
             const workbook = XLSX.read(data, { type: 'array', raw: true });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
@@ -102,30 +102,14 @@ HTML
                 // 2. 抓取名稱
                 const name = row['盒組名稱'] || row['名稱'] || '未命名盒組';
 
-                // 3. 解析金額：優先抓「入手金額」，沒有再抓「原價」
+                // 3. 專一抓取「入手金額」欄位
                 let price = 0;
-                let rawPrice = (row['入手金額'] !== '' && row['入手金額'] !== undefined) 
-                    ? row['入手金額'] 
-                    : row['原價'];
+                let rawPrice = row['入手金額'];
 
                 if (rawPrice !== undefined && rawPrice !== '') {
                     let num = Number(String(rawPrice).replace(/[^0-9.]/g, ''));
-                    if (!isNaN(num) && num > 0) {
+                    if (!isNaN(num)) {
                         price = Math.round(num);
-                    }
-                }
-
-                // 備用機制：如果還是 0，自動掃描該列所有包含數字且大於 10 的欄位
-                if (price === 0) {
-                    for (let key in row) {
-                        let k = String(key).trim();
-                        if (k.includes('金額') || k.includes('價') || k.includes('入手')) {
-                            let num = Number(String(row[key]).replace(/[^0-9.]/g, ''));
-                            if (!isNaN(num) && num > 0) {
-                                price = Math.round(num);
-                                break;
-                            }
-                        }
                     }
                 }
 
