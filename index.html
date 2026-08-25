@@ -90,21 +90,6 @@
 
         let allItems = [];
 
-        // 讀取雲端資料
-        async function fetchItems() {
-            try {
-                const snapshot = await getDocs(legoRef);
-                allItems = [];
-                snapshot.forEach(docSnap => {
-                    allItems.push({ docId: docSnap.id, ...docSnap.data() });
-                });
-                renderList(allItems);
-            } catch (error) {
-                console.error("Error fetching docs: ", error);
-                document.getElementById('item-list').innerText = "讀取資料失敗，請確認資料庫權限。";
-            }
-        }
-
         // 渲染畫面
         window.renderList = function(data) {
             const listDiv = document.getElementById('item-list');
@@ -112,8 +97,11 @@
             let totalCount = 0;
             let totalAmount = 0;
 
-            if (data.length === 0) {
+            if (!data || data.length === 0) {
                 listDiv.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">目前尚無樂高資料，請選擇 Excel 匯入或手動新增。</div>';
+                document.getElementById('total-count').innerText = '0 盒';
+                document.getElementById('total-amount').innerText = '$0';
+                return;
             }
 
             data.forEach(item => {
@@ -124,7 +112,7 @@
                 div.className = 'item-card';
                 div.innerHTML = `
                     <div>
-                        <div class="item-title">${item.name || '未命名'} <span style="font-size:12px; color:#888;">#${item.id}</span></div>
+                        <div class="item-title">${item.name || '未命名'} <span style="font-size:12px; color:#888;">#${item.id || ''}</span></div>
                         <div class="item-sub">📅 ${item.date || '未填'} | 📍 ${item.location || '未填'}</div>
                     </div>
                     <div style="text-align:right;">
@@ -138,6 +126,21 @@
             document.getElementById('total-count').innerText = totalCount + ' 盒';
             document.getElementById('total-amount').innerText = '$' + totalAmount.toLocaleString();
         };
+
+        // 讀取雲端資料
+        async function fetchItems() {
+            try {
+                const snapshot = await getDocs(legoRef);
+                allItems = [];
+                snapshot.forEach(docSnap => {
+                    allItems.push({ docId: docSnap.id, ...docSnap.data() });
+                });
+                renderList(allItems);
+            } catch (error) {
+                console.error("Error fetching docs: ", error);
+                document.getElementById('item-list').innerText = "讀取資料失敗，請確認網路或資料庫設定。";
+            }
+        }
 
         // 搜尋
         window.filterData = function() {
@@ -172,7 +175,7 @@
             }
         };
 
-        // Excel 檔案匯入處理（修正貨幣格式與帶符號數字）
+        // Excel 檔案匯入處理
         document.getElementById('excel-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -182,8 +185,6 @@
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                
-                // 使用 raw: true 取得真正的數字，避免貨幣符號 $ 干擾
                 const json = XLSX.utils.sheet_to_json(sheet, { raw: true });
 
                 const batch = writeBatch(db);
@@ -194,12 +195,10 @@
                     let dateValue = row['購買日期'] || '';
                     let locationValue = row['購買地點'] || '';
 
-                    // 優先抓取「入手金額」，若無則抓「原價」或帶有金額關鍵字的欄位
                     for (let key in row) {
                         const k = key.trim();
                         if (k === '入手金額' || k === '原價' || k.includes('金額') || k.includes('價格')) {
                             if (row[key] !== undefined && row[key] !== null) {
-                                // 剔除非數字字元（只保留數字與小數點）
                                 let rawStr = String(row[key]).replace(/[^0-9.]/g, '');
                                 let parsed = Number(rawStr);
                                 if (!isNaN(parsed) && parsed > 0) {
@@ -210,7 +209,6 @@
                         }
                     }
 
-                    // 處理 Excel 日期格式數字（若日期被轉成五位數字如 45250）
                     if (typeof dateValue === 'number') {
                         const dateObj = XLSX.SSF.parse_date_code(dateValue);
                         if (dateObj) {
@@ -234,3 +232,9 @@
             };
             reader.readAsArrayBuffer(file);
         });
+
+        // 頁面載入時自動讀取
+        fetchItems();
+    </script>
+</body>
+</html>
