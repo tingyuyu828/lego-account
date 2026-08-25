@@ -89,11 +89,13 @@ HTML
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            // raw: true 確保抓取 Excel 底層數值
-            const workbook = XLSX.read(data, { type: 'array', raw: true });
+            // cellFormulas: false, raw: false 讓 SheetJS 自動計算公式並輸出文字結果
+            const workbook = XLSX.read(data, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
+            
+            // 轉成 JSON（使用 raw: false 取得公式計算後的顯示值）
+            const json = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
 
             itemsList = json.map(row => {
                 // 1. 抓取編號
@@ -102,33 +104,27 @@ HTML
                 // 2. 抓取名稱
                 const name = row['盒組名稱'] || row['名稱'] || '未命名盒組';
 
-                // 3. 專一抓取「入手金額」欄位
+                // 3. 專一抓取「入手金額」欄位，並去除符號、取整數
                 let price = 0;
                 let rawPrice = row['入手金額'];
 
                 if (rawPrice !== undefined && rawPrice !== '') {
-                    let num = Number(String(rawPrice).replace(/[^0-9.]/g, ''));
+                    // 移除文字中的逗點、字串符號與小數點後面的部分
+                    let cleanStr = String(rawPrice).replace(/[^0-9.]/g, '');
+                    let num = parseFloat(cleanStr);
                     if (!isNaN(num)) {
                         price = Math.round(num);
                     }
                 }
 
                 // 4. 抓取數量
-                let qty = Number(row['數量']);
+                let qty = parseInt(row['數量'], 10);
                 if (isNaN(qty) || qty <= 0) qty = 1;
 
                 // 5. 抓取日期
-                let date = '';
-                const rawDate = row['購買日期'] || row['日期'];
-                if (rawDate) {
-                    if (typeof rawDate === 'number') {
-                        const dateObj = XLSX.SSF.parse_date_code(rawDate);
-                        if (dateObj) {
-                            date = `${dateObj.y}/${String(dateObj.m).padStart(2, '0')}/${String(dateObj.d).padStart(2, '0')}`;
-                        }
-                    } else {
-                        date = String(rawDate).split('T')[0].replace(/-/g, '/');
-                    }
+                let date = row['購買日期'] || row['日期'] || '';
+                if (date) {
+                    date = String(date).split('T')[0].replace(/-/g, '/');
                 }
 
                 // 6. 抓取地點
