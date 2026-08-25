@@ -78,7 +78,7 @@ HTML
         </div>
     </div>
 
- <script>
+<script>
     let itemsList = [];
 
     // 監聽 Excel 檔案上傳
@@ -89,54 +89,56 @@ HTML
         const reader = new FileReader();
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
-            // cellFormulas: false, raw: false 讓 SheetJS 自動計算公式並輸出文字結果
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
-            // 轉成 JSON（使用 raw: false 取得公式計算後的顯示值）
-            const json = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+            // 轉成 JSON 陣列
+            const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
             itemsList = json.map(row => {
-                // 1. 抓取編號
-                const id = row['盒組編號'] || row['編號'] || '';
+                let id = '', name = '未命名盒組', price = 0, qty = 1, date = '', location = '';
 
-                // 2. 抓取名稱
-                const name = row['盒組名稱'] || row['名稱'] || '未命名盒組';
+                // 動態搜尋所有欄位，忽略前後空白與大小寫
+                for (let key in row) {
+                    const cleanKey = String(key).replace(/\s+/g, ''); // 去除所有空白
+                    const val = row[key];
 
-                // 3. 專一抓取「入手金額」欄位，並去除符號、取整數
-                let price = 0;
-                let rawPrice = row['入手金額'];
-
-                if (rawPrice !== undefined && rawPrice !== '') {
-                    // 移除文字中的逗點、字串符號與小數點後面的部分
-                    let cleanStr = String(rawPrice).replace(/[^0-9.]/g, '');
-                    let num = parseFloat(cleanStr);
-                    if (!isNaN(num)) {
-                        price = Math.round(num);
+                    // 1. 盒組編號
+                    if (cleanKey.includes('盒組編號') || cleanKey === '編號') {
+                        id = String(val);
+                    }
+                    // 2. 盒組名稱
+                    else if (cleanKey.includes('盒組名稱') || cleanKey === '名稱') {
+                        name = String(val);
+                    }
+                    // 3. 精準鎖定「入手金額」
+                    else if (cleanKey.includes('入手金額')) {
+                        let num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+                        if (!isNaN(num)) price = Math.round(num);
+                    }
+                    // 4. 數量
+                    else if (cleanKey === '數量') {
+                        let parsedQty = parseInt(val, 10);
+                        if (!isNaN(parsedQty) && parsedQty > 0) qty = parsedQty;
+                    }
+                    // 5. 購買日期
+                    else if (cleanKey.includes('購買日期') || cleanKey === '日期') {
+                        date = String(val).split('T')[0].replace(/-/g, '/');
+                    }
+                    // 6. 購買地點
+                    else if (cleanKey.includes('購買地點') || cleanKey === '地點') {
+                        location = String(val);
                     }
                 }
 
-                // 4. 抓取數量
-                let qty = parseInt(row['數量'], 10);
-                if (isNaN(qty) || qty <= 0) qty = 1;
-
-                // 5. 抓取日期
-                let date = row['購買日期'] || row['日期'] || '';
-                if (date) {
-                    date = String(date).split('T')[0].replace(/-/g, '/');
-                }
-
-                // 6. 抓取地點
-                const location = row['購買地點'] || row['地點'] || '';
-
                 return {
-                    id: String(id),
-                    name: String(name),
+                    id: id,
+                    name: name,
                     price: price,
                     qty: qty,
                     date: date,
-                    location: String(location)
+                    location: location
                 };
             });
 
