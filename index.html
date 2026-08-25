@@ -6,6 +6,9 @@
     <title>樂高購買紀錄帳本</title>
     <!-- SheetJS 用於解析 Excel -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Firebase 相容版 SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
@@ -69,11 +72,7 @@
         <div id="item-list">載入中...</div>
     </div>
 
-    <!-- 載入 Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
+    <script>
         const firebaseConfig = {
             apiKey: "AIzaSyD1_oCmaGgVTkn4vABJnEGiYmr7mLHSuDE",
             authDomain: "lego-account.firebaseapp.com",
@@ -84,14 +83,13 @@
             measurementId: "G-XYKYDFZT9V"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const legoRef = collection(db, "lego_items");
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const legoRef = db.collection("lego_items");
 
         let allItems = [];
 
-        // 渲染畫面
-        window.renderList = function(data) {
+        function renderList(data) {
             const listDiv = document.getElementById('item-list');
             listDiv.innerHTML = '';
             let totalCount = 0;
@@ -125,12 +123,11 @@
 
             document.getElementById('total-count').innerText = totalCount + ' 盒';
             document.getElementById('total-amount').innerText = '$' + totalAmount.toLocaleString();
-        };
+        }
 
-        // 讀取雲端資料
         async function fetchItems() {
             try {
-                const snapshot = await getDocs(legoRef);
+                const snapshot = await legoRef.get();
                 allItems = [];
                 snapshot.forEach(docSnap => {
                     allItems.push({ docId: docSnap.id, ...docSnap.data() });
@@ -138,12 +135,11 @@
                 renderList(allItems);
             } catch (error) {
                 console.error("Error fetching docs: ", error);
-                document.getElementById('item-list').innerText = "讀取資料失敗，請確認網路或資料庫設定。";
+                document.getElementById('item-list').innerText = "讀取資料失敗，請確認網路或資料庫權限。";
             }
         }
 
-        // 搜尋
-        window.filterData = function() {
+        function filterData() {
             const q = document.getElementById('search').value.toLowerCase();
             const filtered = allItems.filter(i => 
                 (i.name && i.name.toLowerCase().includes(q)) || 
@@ -151,10 +147,9 @@
                 (i.location && i.location.toLowerCase().includes(q))
             );
             renderList(filtered);
-        };
+        }
 
-        // 手動新增單筆
-        window.addSingleItem = async function() {
+        async function addSingleItem() {
             const newItem = {
                 id: document.getElementById('add-id').value,
                 name: document.getElementById('add-name').value,
@@ -162,20 +157,18 @@
                 date: document.getElementById('add-date').value,
                 location: document.getElementById('add-location').value
             };
-            await addDoc(legoRef, newItem);
+            await legoRef.add(newItem);
             alert('已新增至雲端！');
             fetchItems();
-        };
+        }
 
-        // 刪除單筆
-        window.deleteItem = async function(docId) {
+        async function deleteItem(docId) {
             if (confirm('確定要刪除這筆資料嗎？')) {
-                await deleteDoc(doc(db, "lego_items", docId));
+                await legoRef.doc(docId).delete();
                 fetchItems();
             }
-        };
+        }
 
-        // Excel 檔案匯入處理
         document.getElementById('excel-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -187,7 +180,7 @@
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const json = XLSX.utils.sheet_to_json(sheet, { raw: true });
 
-                const batch = writeBatch(db);
+                const batch = db.batch();
                 json.forEach(row => {
                     let priceValue = 0;
                     let idValue = row['盒組編號'] || '';
@@ -216,7 +209,7 @@
                         }
                     }
 
-                    const newDoc = doc(legoRef);
+                    const newDoc = legoRef.doc();
                     batch.set(newDoc, {
                         id: String(idValue),
                         name: String(nameValue),
@@ -233,7 +226,6 @@
             reader.readAsArrayBuffer(file);
         });
 
-        // 頁面載入時自動讀取
         fetchItems();
     </script>
 </body>
