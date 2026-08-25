@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>老公的樂高帳本</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body { background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 25px; }
+        h1 { font-size: 26px; color: #d9381e; margin: 0 0 10px 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; }
+        .stat-card .label { font-size: 13px; color: #666; margin-bottom: 5px; }
+        .stat-card .value { font-size: 22px; font-weight: bold; color: #1a1a1a; }
+        .card-list { display: flex; flex-direction: column; gap: 12px; }
+        .item-card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; position: relative; }
+        .item-info { flex: 1; }
+        .item-title { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 4px; }
+        .item-sub { font-size: 13px; color: #777; margin-bottom: 8px; }
+        .item-meta { font-size: 13px; color: #555; display: flex; gap: 12px; align-items: center; }
+        .item-price { font-size: 20px; font-weight: bold; color: #d9381e; text-align: right; }
+        .badge { background: #eef2ff; color: #4f46e5; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+        .search-bar { margin-bottom: 15px; width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 10px; font-size: 15px; background: white; outline: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧱 樂高購買紀錄帳本</h1>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">總盒組數量</div>
+                <div class="value" id="total-count">0 盒</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">累積購買金額</div>
+                <div class="value" id="total-amount" style="color: #d9381e;">$0</div>
+            </div>
+        </div>
+
+        <input type="text" id="search" class="search-bar" placeholder="🔍 搜尋盒組名稱、編號或地點..." oninput="filterData()">
+
+        <div class="card-list" id="item-container"></div>
+    </div>
+
+    <script>
+        const items = [{"id": "71040", "name": "迪士尼城堡", "price": 13000, "buy_price": 13000, "date": "2023/11/01", "location": "Brick Papa", "series": "DISNEY", "count": 1}, {"id": "71044", "name": "迪士尼火車", "price": 16000, "buy_price": 16000, "date": "2023/11/01", "location": "蝦皮面交", "series": "DISNEY", "count": 1}, {"id": "76248", "name": "The Avengers Quinjet", "price": 2744, "buy_price": 2744, "date": "2023/11/05", "location": "三重家樂福玩具E哥", "series": "Marvel", "count": 1}, {"id": "76216", "name": "鋼鐵人倉庫", "price": 2144, "buy_price": 2144, "date": "2023/11/05", "location": "三重家樂福玩具E哥", "series": "Marvel", "count": 1}, {"id": "42155", "name": "蝙蝠俠摩托車", "price": 1429, "buy_price": 1429, "date": "2023/11/05", "location": "三重家樂福玩具E哥", "series": "Marvel", "count": 1}, {"id": "10293", "name": "聖誕老人來訪", "price": 2199, "buy_price": 2199, "date": "2023/11/10", "location": "好市多 黑五", "series": "聖誕節", "count": 1}, {"id": "40659", "name": "迷你蒸氣船", "price": 1199, "buy_price": 1199, "date": "2023/11/17", "location": "Brick Papa", "series": "DISNEY", "count": 1}, {"id": "43225", "name": "美人魚貝殼", "price": 2849, "buy_price": 2849, "date": "2023/11/25", "location": "Brick Papa 黑五", "series": "DISNEY", "count": 1}, {"id": "10302", "name": "變形金剛柯博文", "price": 2899, "buy_price": 2899, "date": "2023/11/25", "location": "Brick Papa 黑五", "series": "Transformers", "count": 1}, {"id": "10308", "name": "聖誕節街道", "price": 1649, "buy_price": 1649, "date": "2023/11/25", "location": "Brick Papa 黑五", "series": "聖誕節", "count": 1}, {"id": "41757", "name": "玻璃屋", "price": 2029, "buy_price": 2029, "date": "2023/11/25", "location": "Brick Papa 黑五", "series": "Friends", "count": 1}, {"id": "10321", "name": "雪弗蘭車", "price": 3490, "buy_price": 3490, "date": "2023/11/25", "location": "昇恆昌", "series": "ICONS", "count": 1}, {"id": "60335", "name": "忙碌火車站", "price": 2041, "buy_price": 2041, "date": "2023/11/25", "location": "昇恆昌", "series": "CITY", "count": 1}, {"id": "40499", "name": "聖誕老人雪橇", "price": 862, "buy_price": 862, "date": "2023/11/25", "location": "昇恆昌", "series": "聖誕節", "count": 1}, {"id": "60336", "name": "貨運列車", "price": 4225, "buy_price": 4225, "date": "2023/11/25", "location": "昇恆昌", "series": "CITY", "count": 1}, {"id": "40574", "name": "樂高品牌迷你商店", "price": 986, "buy_price": 986, "date": "2023/11/25", "location": "昇恆昌", "series": "小商店", "count": 1}, {"id": "76907", "name": "Lotus超跑", "price": 528, "buy_price": 528, "date": "2023/11/25", "location": "昇恆昌", "series": "SPEED", "count": 1}, {"id": "76911", "name": "Austin Martin 007", "price": 504, "buy_price": 504, "date": "2023/11/25", "location": "昇恆昌", "series": "SPEED", "count": 1}, {"id": "60197", "name": "客運列車", "price": 4190, "buy_price": 4190, "date": "2023/11/27", "location": "蝦皮面交", "series": "CITY", "count": 1}, {"id": "60198", "name": "貨物列車", "price": 6295, "buy_price": 6295, "date": "2023/11/28", "location": "蝦皮", "series": "CITY", "count": 1}, {"id": "10329", "name": "迷你盆栽", "price": 1315, "buy_price": 1315, "date": "2023/12/05", "location": "蝦皮-必買站", "series": "ICONS", "count": 1}, {"id": "60233", "name": "甜甜圈", "price": 2680, "buy_price": 2680, "date": "2023/12/06", "location": "臉書競標", "series": "CITY", "count": 1}, {"id": "60238", "name": "軌道", "price": 548, "buy_price": 548, "date": "2023/12/07", "location": "蝦皮", "series": "CITY", "count": 1}, {"id": "60205", "name": "軌道", "price": 552, "buy_price": 552, "date": "2023/12/10", "location": "蝦皮", "series": "CITY", "count": 1}, {"id": "21317", "name": "米奇蒸氣船", "price": 3380, "buy_price": 3380, "date": "2023/12/11", "location": "臉書競標", "series": "DISNEY", "count": 1}, {"id": "31036", "name": "玩具雜貨店", "price": 1000, "buy_price": 1000, "date": "2025/02/18", "location": "蝦皮", "series": "Creator", "count": 1}, {"id": "31065", "name": "公園街市政廳", "price": 2000, "buy_price": 2000, "date": "2025/02/18", "location": "蝦皮", "series": "Creator", "count": 1}, {"id": "31050", "name": "轉角熱食堂", "price": 2200, "buy_price": 2200, "date": "2025/02/16", "location": "臉書", "series": "Creator", "count": 1}];
+
+        function renderItems(dataList) {
+            const container = document.getElementById('item-container');
+            container.innerHTML = '';
+            
+            let totalCount = 0;
+            let totalAmount = 0;
+
+            dataList.forEach(item => {
+                totalCount += item.count || 1;
+                totalAmount += item.buy_price || 0;
+
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                card.innerHTML = `
+                    <div class="item-info">
+                        <div class="item-title">${item.name}</div>
+                        <div class="item-sub">編號: #${item.id} <span class="badge">${item.series || 'LEGO'}</span></div>
+                        <div class="item-meta">
+                            <span>📅 ${item.date || '未填寫'}</span>
+                            <span>📍 ${item.location || '未知'}</span>
+                        </div>
+                    </div>
+                    <div class="item-price">$${(item.buy_price || 0).toLocaleString()}</div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('total-count').innerText = totalCount + ' 盒';
+            document.getElementById('total-amount').innerText = '$' + totalAmount.toLocaleString();
+        }
+
+        function filterData() {
+            const query = document.getElementById('search').value.toLowerCase();
+            const filtered = items.filter(item => 
+                item.name.toLowerCase().includes(query) ||
+                item.id.toString().includes(query) ||
+                (item.location && item.location.toLowerCase().includes(query)) ||
+                (item.series && item.series.toLowerCase().includes(query))
+            );
+            renderItems(filtered);
+        }
+
+        // Initial Render
+        renderItems(items);
+    </script>
+</body>
+</html>
